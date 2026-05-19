@@ -2,6 +2,8 @@ package br.com.planet.ixcwatchtask.token;
 
 import br.com.planet.ixcwatchtask.config.SeleniumConfig;
 import org.openqa.selenium.By;
+import org.openqa.selenium.ElementClickInterceptedException;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
@@ -16,9 +18,9 @@ import java.time.Duration;
 @Component
 public class WatchToken {
 
-    SeleniumConfig seleniumConfig;
-    WebDriver driver;
-    WebDriverWait wait;
+    private final SeleniumConfig seleniumConfig;
+    private WebDriver driver;
+    private WebDriverWait wait;
     private final String login;
     private final String senha;
     private final boolean debug;
@@ -45,25 +47,23 @@ public class WatchToken {
     public String getToken() {
         try {
             driver = seleniumConfig.createDriver(debug);
-            wait = new WebDriverWait(driver, Duration.ofSeconds(5L));
+            wait = new WebDriverWait(driver, Duration.ofSeconds(20L));
             this.logar();
 
-            driver.findElement(By.xpath("//*[@id=\"layout_menu_lateral\"]/div/ul/li[3]/a")).click(); //Menu configurações
-            driver.findElement(By.id("menu73573a838a837557347239b4ff197e49")).click(); //Menu integrações
-            driver.findElement(By.id("menu_item_integracoes")).click(); //Sub menu integrações TV
+            waitForIxcHomeReady();
+            clickWhenReady(By.xpath("//*[@id=\"layout_menu_lateral\"]/div/ul/li[3]/a"));
+            clickWhenReady(By.id("menu73573a838a837557347239b4ff197e49"));
+            clickWhenReady(By.id("menu_item_integracoes"));
+            clickWhenReady(By.xpath("//*[@id=\"1_grid\"]/div/div[3]/div[1]/button[2]"));
 
-            wait.until(ExpectedConditions.presenceOfElementLocated((By.xpath("//*[@id=\"1_grid\"]/div/div[3]/div[1]/button[2]")))).click(); //Botão "editar" em menu Integrações TV (Watch é o primeiro da lista e já aparece selecionado)
-
-            String token = wait.until(ExpectedConditions.presenceOfElementLocated((By.id("token_acesso_watch")))).getAttribute("value"); //Campo Token Acesso
-            return token;
-
+            return wait.until(ExpectedConditions.presenceOfElementLocated(By.id("token_acesso_watch")))
+                    .getAttribute("value");
         } catch (WebDriverException e) {
             throw e;
-        }finally {
+        } finally {
             seleniumConfig.closeSession(driver);
         }
     }
-
 
     public void logar() {
         try {
@@ -77,28 +77,66 @@ public class WatchToken {
             WebElement emailElement = wait.until(ExpectedConditions.elementToBeClickable(By.id("email")));
             emailElement.sendKeys(login);
 
-            driver.findElement(By.id("btn-next-login")).click();
+            clickWhenReady(By.id("btn-next-login"));
 
             WebElement passElement = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("password")));
             passElement.sendKeys(senha);
 
-            driver.findElement(By.id("btn-enter-login")).click();
-            try {//Caso dê erro de sessão ativa, ele clica novamente no botão de login e faz o by-pass
-                driver.findElement(By.id("btn-enter-login")).click();
+            clickWhenReady(By.id("btn-enter-login"));
+            try {
+                clickWhenReady(By.id("btn-enter-login"));
             } catch (WebDriverException e) {
             }
 
-            try { //Verificando se mensagem de autenticação de 2 fatores irá aparecer
+            try {
                 wait.until(ExpectedConditions.presenceOfElementLocated(By.id("Auth2FA")));
-                driver.findElement(By.xpath("//*[@id=\"Auth2FA\"]/div[2]/div[3]/button[1]")).click();
+                clickWhenReady(By.xpath("//*[@id=\"Auth2FA\"]/div[2]/div[3]/button[1]"));
             } catch (WebDriverException ex) {
             }
-
         } catch (WebDriverException e) {
             throw e;
         }
     }
 
+    private void waitForIxcHomeReady() {
+        //IA: em headless, overlays do IXC podem permanecer sobre o menu por alguns instantes.
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.id("layout_menu_lateral")));
+        wait.until(driver -> isElementClickableAtCenter(By.xpath("//*[@id=\"layout_menu_lateral\"]/div/ul/li[3]/a")));
+    }
 
+    private void clickWhenReady(By locator) {
+        WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+        scrollToCenter(element);
+
+        try {
+            element.click();
+        } catch (ElementClickInterceptedException ex) {
+            wait.until(driver -> isElementClickableAtCenter(locator));
+            clickWithJavascript(element);
+        }
+    }
+
+    private void scrollToCenter(WebElement element) {
+        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center', inline: 'center'});", element);
+    }
+
+    private void clickWithJavascript(WebElement element) {
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+    }
+
+    private boolean isElementClickableAtCenter(By locator) {
+        try {
+            WebElement element = driver.findElement(locator);
+            return Boolean.TRUE.equals(((JavascriptExecutor) driver).executeScript("""
+                    const element = arguments[0];
+                    const rect = element.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
+                    const topElement = document.elementFromPoint(x, y);
+                    return topElement === element || element.contains(topElement);
+                    """, element));
+        } catch (WebDriverException ex) {
+            return false;
+        }
+    }
 }
-

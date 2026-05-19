@@ -34,8 +34,11 @@ public class SeleniumConfig {
         options.addArguments("--no-default-browser-check");
         options.addArguments("--disable-background-networking");
         options.addArguments("--disable-component-update");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--force-device-scale-factor=1");
 
         if (!debug) {
+            //IA: o IXC renderiza menus de forma diferente em headless sem tamanho fixo.
             options.addArguments("--headless=new");
         }
 

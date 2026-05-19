@@ -50,7 +50,8 @@ public class MainTask {
         int hboDel = 0;
         int premiereDel = 0;
         int hubDel = 0;
-        int ixcDel = 0;
+        int ixcDelNormal = 0;
+        int ixcDelInconsistency = 0;
 
         int ticketNotFound = 0;
 
@@ -111,7 +112,7 @@ public class MainTask {
             Ticket temp = watchService.buscar(Long.toString(u.getContratoId()), token);
 
             if (temp == null) {
-                log.error("Ticket {} atrelado ao contrato {} não foi encontrado na plataforma da Watch", u.getTicketWatch(), u.getContratoId());
+                log.warn("Ticket {} atrelado ao contrato {} não foi encontrado na plataforma da Watch", u.getTicketWatch(), u.getContratoId());
                 taskLog.warn("event=WATCH_TICKET_NOT_FOUND executionId={} contratoId={} usuarioTvId={}", executionId, u.getContratoId(), u.getId());
                 ticketNotFound++;
                 naoLocalizadoWatch.add(u);
@@ -188,7 +189,7 @@ public class MainTask {
 
                 log.info("Usuario TV {} deletado com sucesso", u.getId());
                 taskLog.info("event=IXC_DELETE_SUCCESS executionId={} contratoId={} usuarioTvId={}", executionId, idContrato, u.getId());
-                ixcDel++;
+                ixcDelNormal++;
 
             } catch (RuntimeException ex) {
                 deleteFailureIXC.add(u);
@@ -199,10 +200,6 @@ public class MainTask {
         }
 
         int watchTicketTotal = watchUpDel + hboDel + hubDel + premiereDel;
-
-
-        log.info("Acessos IXC Deletados: {}\nAcessos Watch Up deletados: {}\nAcessos HBO deletados: {}\nAcessos Premiere deletados: {}\nAcessos Hub Premium deletados {}\nTotal acessos Watch deletados: {}\nAcessos Watch não encontrados: {}\nErros integração watch: {}\nErros integração IXC: {}", ixcDel, watchUpDel, hboDel, premiereDel, hubDel, watchTicketTotal, ticketNotFound, watchIntegrationError, ixcIntegrationError);
-        taskLog.info("event=EXECUTION_SUMMARY executionId={} ixcDeleted={} watchUpDeleted={} hboDeleted={} premiereDeleted={} hubDeleted={} watchDeletedTotal={} watchNotFound={} watchErrors={} ixcErrors={}", executionId, ixcDel, watchUpDel, hboDel, premiereDel, hubDel, watchTicketTotal, ticketNotFound, watchIntegrationError, ixcIntegrationError);
 
 
         String inconsistencias = "==Inconsistências==\n";
@@ -249,7 +246,7 @@ public class MainTask {
 
                     log.info("Usuario TV {} deletado com sucesso", usuarioTV.getId());
                     taskLog.info("event=IXC_INCONSISTENCY_DELETE_SUCCESS executionId={} usuarioTvId={} contratoId={}", executionId, usuarioTV.getId(), usuarioTV.getContratoId());
-                    ixcDel++;
+                    ixcDelInconsistency++;
                 } catch (RuntimeException ex) {
                     log.error("Erro ao deletar usuario TV IXCSoft: {}", ex.getMessage());
                     taskLog.error("event=IXC_INCONSISTENCY_DELETE_ERROR executionId={} usuarioTvId={} contratoId={} error=\"{}\"", executionId, usuarioTV.getId(), usuarioTV.getContratoId(), sanitizeLogValue(ex.getMessage()));
@@ -259,6 +256,10 @@ public class MainTask {
             log.info("\n==Encerrando rotina==");
 
         }
+        int ixcDelTotal = ixcDelNormal + ixcDelInconsistency;
+        log.info("Acessos IXC deletados no fluxo normal: {}\nAcessos IXC deletados por inconsistência: {}\nTotal acessos IXC deletados: {}\nAcessos Watch Up deletados: {}\nAcessos HBO deletados: {}\nAcessos Premiere deletados: {}\nAcessos Hub Premium deletados {}\nTotal acessos Watch deletados: {}\nAcessos Watch não encontrados: {}\nErros integração watch: {}\nErros integração IXC: {}", ixcDelNormal, ixcDelInconsistency, ixcDelTotal, watchUpDel, hboDel, premiereDel, hubDel, watchTicketTotal, ticketNotFound, watchIntegrationError, ixcIntegrationError);
+        //IA: resumo final emitido apos ajuste de inconsistencias para refletir o total real removido no IXC.
+        taskLog.info("event=EXECUTION_SUMMARY executionId={} ixcDeletedNormal={} ixcDeletedInconsistency={} ixcDeletedTotal={} watchUpDeleted={} hboDeleted={} premiereDeleted={} hubDeleted={} watchDeletedTotal={} watchNotFound={} watchErrors={} ixcErrors={}", executionId, ixcDelNormal, ixcDelInconsistency, ixcDelTotal, watchUpDel, hboDel, premiereDel, hubDel, watchTicketTotal, ticketNotFound, watchIntegrationError, ixcIntegrationError);
         taskLog.info("event=EXECUTION_END executionId={} status=FINISHED", executionId);
     }
 

@@ -1,5 +1,6 @@
 package br.com.planet.ixcwatchtask.controller;
 
+import br.com.planet.ixcwatchtask.monitoring.TaskExecutionMonitor;
 import br.com.planet.ixcwatchtask.task.MainTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestController
 @RequestMapping("/tasks/ixc-watch")
@@ -20,16 +20,17 @@ public class TaskController {
     private static final Logger log = LoggerFactory.getLogger(TaskController.class);
 
     private final MainTask mainTask;
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final TaskExecutionMonitor monitor;
 
-    public TaskController(MainTask mainTask) {
+    public TaskController(MainTask mainTask, TaskExecutionMonitor monitor) {
         this.mainTask = mainTask;
+        this.monitor = monitor;
     }
 
     @PostMapping("/run")
     public ResponseEntity<Map<String, Object>> runIxcWatchTask() {
-        //IA: evita execucao manual concorrente com outra chamada manual ainda em andamento.
-        if (!running.compareAndSet(false, true)) {
+        //IA: usa o mesmo monitor da rotina agendada para evitar concorrencia manual/agendada.
+        if (Boolean.TRUE.equals(monitor.status().get("taskRunning"))) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                     "status", "already_running",
                     "message", "Rotina IXC Watch ja esta em execucao",
@@ -54,8 +55,6 @@ public class TaskController {
                     "error", ex.getMessage() == null ? "" : ex.getMessage(),
                     "timestamp", LocalDateTime.now()
             ));
-        } finally {
-            running.set(false);
         }
     }
 }

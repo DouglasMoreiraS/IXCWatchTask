@@ -81,10 +81,32 @@ O log operacional da rotina usa `executionId` para correlacionar os eventos de u
 
 ## Agendamento
 
-A rotina esta agendada para executar diariamente as 12h:
+A rotina esta agendada para executar diariamente as 7h:
 
 ```text
-0 00 12 * * *
+0 0 7 * * *
+```
+
+## Monitoramento
+
+Endpoints uteis para acompanhamento local e Uptime Kuma:
+
+```text
+GET  http://localhost:5052/actuator/health
+GET  http://localhost:5052/monitoring/task-status
+POST http://localhost:5052/tasks/ixc-watch/run
+```
+
+Para monitoramento de disponibilidade no Uptime Kuma, use:
+
+```text
+http://localhost:5052/actuator/health
+```
+
+Para consultar a ultima execucao da rotina, use:
+
+```text
+http://localhost:5052/monitoring/task-status
 ```
 
 ## Deploy Windows

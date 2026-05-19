@@ -3,6 +3,7 @@ package br.com.planet.ixcwatchtask.task;
 import br.com.planet.ixcwatchtask.exception.TicketNaoEncontradoException;
 import br.com.planet.ixcwatchtask.integration.IntegrationResponse;
 import br.com.planet.ixcwatchtask.integration.ixc.UsuarioTVDeleteResponse;
+import br.com.planet.ixcwatchtask.monitoring.TaskExecutionMonitor;
 import br.com.planet.ixcwatchtask.model.ixc.Contrato;
 import br.com.planet.ixcwatchtask.model.ixc.UsuarioTV;
 import br.com.planet.ixcwatchtask.model.watch.Ticket;
@@ -33,18 +34,28 @@ public class MainTask {
     private final ContratoIXCService contratoService;
     private final WatchService watchService;
     private final WatchToken watchToken;
+    private final TaskExecutionMonitor monitor;
 
-    public MainTask(UsuarioTVIXCService usuarioIXCService, ContratoIXCService contratoService, WatchService watchService, WatchToken watchToken) {
+    public MainTask(UsuarioTVIXCService usuarioIXCService, ContratoIXCService contratoService, WatchService watchService, WatchToken watchToken, TaskExecutionMonitor monitor) {
         this.usuarioIXCService = usuarioIXCService;
         this.contratoService = contratoService;
         this.watchService = watchService;
         this.watchToken = watchToken;
+        this.monitor = monitor;
     }
 
-    @Scheduled(cron = "0 00 12 * * *") //Aplica todo dia as 12h
+    @Scheduled(cron = "0 0 7 * * *") //IA: executa diariamente as 7h.
     public void mainTask() {
         //IA: identificador unico da execucao para correlacionar eventos no arquivo logs/task.
         String executionId = LocalDateTime.now().format(EXECUTION_ID_FORMATTER);
+
+        if (!monitor.start(executionId)) {
+            log.warn("Rotina IXC x Watch ja esta em execucao. Ignorando nova chamada. executionId={}", executionId);
+            taskLog.warn("event=EXECUTION_ALREADY_RUNNING executionId={}", executionId);
+            return;
+        }
+
+        try {
 
         int watchUpDel = 0;
         int hboDel = 0;
@@ -73,6 +84,7 @@ public class MainTask {
         if (token == null || token.isBlank()) {
             log.error("O token retornado é invalido, encerrando tarefa");
             taskLog.error("event=EXECUTION_ABORT executionId={} reason=TOKEN_INVALID", executionId);
+            monitor.abort("TOKEN_INVALID");
             return;
         }
 
@@ -261,6 +273,24 @@ public class MainTask {
         //IA: resumo final emitido apos ajuste de inconsistencias para refletir o total real removido no IXC.
         taskLog.info("event=EXECUTION_SUMMARY executionId={} ixcDeletedNormal={} ixcDeletedInconsistency={} ixcDeletedTotal={} watchUpDeleted={} hboDeleted={} premiereDeleted={} hubDeleted={} watchDeletedTotal={} watchNotFound={} watchErrors={} ixcErrors={}", executionId, ixcDelNormal, ixcDelInconsistency, ixcDelTotal, watchUpDel, hboDel, premiereDel, hubDel, watchTicketTotal, ticketNotFound, watchIntegrationError, ixcIntegrationError);
         taskLog.info("event=EXECUTION_END executionId={} status=FINISHED", executionId);
+        monitor.finish(Map.ofEntries(
+                Map.entry("ixcDeletedNormal", ixcDelNormal),
+                Map.entry("ixcDeletedInconsistency", ixcDelInconsistency),
+                Map.entry("ixcDeletedTotal", ixcDelTotal),
+                Map.entry("watchUpDeleted", watchUpDel),
+                Map.entry("hboDeleted", hboDel),
+                Map.entry("premiereDeleted", premiereDel),
+                Map.entry("hubDeleted", hubDel),
+                Map.entry("watchDeletedTotal", watchTicketTotal),
+                Map.entry("watchNotFound", ticketNotFound),
+                Map.entry("watchErrors", watchIntegrationError),
+                Map.entry("ixcErrors", ixcIntegrationError)
+        ));
+        } catch (RuntimeException ex) {
+            monitor.fail(ex);
+            taskLog.error("event=EXECUTION_END executionId={} status=ERROR error=\"{}\"", executionId, sanitizeLogValue(ex.getMessage()));
+            throw ex;
+        }
     }
 
     private String sanitizeLogValue(String value) {

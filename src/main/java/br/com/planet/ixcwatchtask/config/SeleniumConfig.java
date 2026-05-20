@@ -36,6 +36,10 @@ public class SeleniumConfig {
         options.addArguments("--disable-component-update");
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--force-device-scale-factor=1");
+        //IA: flags necessarias para execucao estavel do Chromium dentro de container Linux/Portainer.
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
 
         if (!debug) {
             //IA: o IXC renderiza menus de forma diferente em headless sem tamanho fixo.

@@ -123,3 +123,47 @@ C:\ixcwatchtask
 ```
 
 Para producao, preferir execucao como servico Windows usando NSSM.
+
+## Deploy Portainer
+
+O projeto possui `Dockerfile` e `docker-compose.portainer.yml` para deploy como Stack no Portainer.
+
+Variaveis obrigatorias na Stack:
+
+```text
+IXC_AUTH
+IXC_WEB_LOGIN
+IXC_WEB_PASSWORD
+```
+
+Variaveis opcionais:
+
+```text
+IXC_API_BASE_URL
+WATCH_API_DELETE_URL
+WATCH_API_SEARCH_URL
+WATCH_WEB_DEBUG=false
+```
+
+O container instala Chromium e Chromedriver internamente e usa:
+
+```text
+SELENIUM_CHROME_DRIVER_PATH=/usr/bin/chromedriver
+SELENIUM_CHROME_BINARY_PATH=/usr/bin/chromium
+TZ=America/Sao_Paulo
+```
+
+No Portainer:
+
+1. Crie uma Stack a partir do repositorio Git.
+2. Use `docker-compose.portainer.yml` como compose path.
+3. Configure as variaveis obrigatorias como Environment variables da Stack.
+4. Publique a porta `5052`.
+5. Valide:
+
+```text
+GET http://SERVIDOR:5052/actuator/health
+GET http://SERVIDOR:5052/monitoring/task-status
+```
+
+Os logs da aplicacao ficam persistidos no volume Docker `ixc-watch-task-logs`.

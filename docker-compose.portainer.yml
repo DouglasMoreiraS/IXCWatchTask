@@ -1,0 +1,32 @@
+services:
+  ixc-watch-task:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ixc-watch-task:0.1.0
+    container_name: ixc-watch-task
+    restart: unless-stopped
+    ports:
+      - "5052:5052"
+    environment:
+      TZ: America/Sao_Paulo
+      IXC_AUTH: ${IXC_AUTH:?configure_IXC_AUTH}
+      IXC_WEB_LOGIN: ${IXC_WEB_LOGIN:?configure_IXC_WEB_LOGIN}
+      IXC_WEB_PASSWORD: ${IXC_WEB_PASSWORD:?configure_IXC_WEB_PASSWORD}
+      IXC_API_BASE_URL: ${IXC_API_BASE_URL:-https://central.planetinternetprovedor.com.br/webservice/v1/}
+      WATCH_API_DELETE_URL: ${WATCH_API_DELETE_URL:-https://apiweb.watch.tv.br/watch/v1/tickets/delete}
+      WATCH_API_SEARCH_URL: ${WATCH_API_SEARCH_URL:-https://apiweb.watch.tv.br/watch/v2/tickets/get}
+      WATCH_WEB_DEBUG: ${WATCH_WEB_DEBUG:-false}
+      SELENIUM_CHROME_DRIVER_PATH: /usr/bin/chromedriver
+      SELENIUM_CHROME_BINARY_PATH: /usr/bin/chromium
+    volumes:
+      - ixc-watch-task-logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5052/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  ixc-watch-task-logs:

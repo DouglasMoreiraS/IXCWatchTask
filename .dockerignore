@@ -1,0 +1,14 @@
+.git
+.idea
+.mvn
+target
+logs
+service-logs
+*.iml
+*.log
+*.jar
+*.jar.original
+*.bak
+README.md
+CHANGELOG.md
+HELP.md

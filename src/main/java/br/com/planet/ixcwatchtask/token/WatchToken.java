@@ -71,6 +71,7 @@ public class WatchToken {
             taskLog.info("event=TOKEN_NAV_SYSTEM_CLICKED");
             clickWhenReady(By.id("menu_item_integracoes"));
             taskLog.info("event=TOKEN_NAV_INTEGRATIONS_CLICKED");
+            refreshIntegrationsGrid();
             clickWhenReady(By.xpath("//*[@id=\"1_grid\"]/div/div[3]/div[1]/button[2]"));
             taskLog.info("event=TOKEN_NAV_EDIT_CLICKED");
 
@@ -149,6 +150,15 @@ public class WatchToken {
         }
     }
 
+    private void refreshIntegrationsGrid() {
+        //IA: o IXC pode abrir a grid de integracoes com 0 itens ate clicar no Atualizar do filtro.
+        By refreshButton = By.cssSelector("span.pPageButtons i[title='Atualizar']");
+        wait.until(ExpectedConditions.presenceOfElementLocated(refreshButton));
+        clickWhenReady(refreshButton);
+        taskLog.info("event=TOKEN_NAV_INTEGRATIONS_REFRESH_CLICKED");
+        pause(Duration.ofSeconds(5L));
+    }
+
     private String waitForTokenValue() {
         //IA: o campo pode renderizar antes do IXC preencher o valor do token.
         return wait.until(driver -> {
@@ -196,6 +206,15 @@ public class WatchToken {
 
     private void clickWithJavascript(WebElement element) {
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+    }
+
+    private void pause(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new WebDriverException("Espera interrompida ao atualizar grid de integracoes", ex);
+        }
     }
 
     private boolean isElementClickableAtCenter(By locator) {

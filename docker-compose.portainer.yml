@@ -20,13 +20,10 @@ services:
       SELENIUM_CHROME_DRIVER_PATH: /usr/bin/chromedriver
       SELENIUM_CHROME_BINARY_PATH: /usr/bin/chromium
     volumes:
-      - ixc-watch-task-logs:/app/logs
+      - /home/administrador/ixc-watch-task/logs:/app/logs
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5052/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-
-volumes:
-  ixc-watch-task-logs:

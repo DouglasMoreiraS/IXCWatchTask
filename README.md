@@ -166,4 +166,21 @@ GET http://SERVIDOR:5052/actuator/health
 GET http://SERVIDOR:5052/monitoring/task-status
 ```
 
-Os logs da aplicacao ficam persistidos no volume Docker `ixc-watch-task-logs`.
+Os logs da aplicacao ficam persistidos no host em:
+
+```text
+/home/administrador/ixc-watch-task/logs
+```
+
+Crie a pasta no servidor antes do deploy:
+
+```bash
+mkdir -p /home/administrador/ixc-watch-task/logs
+chmod 775 /home/administrador/ixc-watch-task/logs
+```
+
+Screenshots de falhas Selenium ficam em:
+
+```text
+/home/administrador/ixc-watch-task/logs/selenium
+```

@@ -38,6 +38,7 @@ IXC_API_BASE_URL
 WATCH_API_DELETE_URL
 WATCH_API_SEARCH_URL
 WATCH_WEB_DEBUG
+WATCH_INTEGRATION_ID
 SELENIUM_CHROME_DRIVER_PATH
 SELENIUM_CHROME_BINARY_PATH
 ```
@@ -143,6 +144,7 @@ IXC_API_BASE_URL
 WATCH_API_DELETE_URL
 WATCH_API_SEARCH_URL
 WATCH_WEB_DEBUG=false
+WATCH_INTEGRATION_ID=4
 ```
 
 O container instala Chromium e Chromedriver internamente e usa:
@@ -152,6 +154,8 @@ SELENIUM_CHROME_DRIVER_PATH=/usr/bin/chromedriver
 SELENIUM_CHROME_BINARY_PATH=/usr/bin/chromium
 TZ=America/Sao_Paulo
 ```
+
+Depois do login web no IXC, a aplicacao consulta o endpoint interno autenticado da tela de integracoes para obter o campo `token_acesso_watch`. Por padrao, usa `WATCH_INTEGRATION_ID=4`, que corresponde ao cadastro WATCH.
 
 No Portainer:
 

@@ -22,6 +22,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 
 @Component
 public class WatchToken {
@@ -36,17 +38,20 @@ public class WatchToken {
     private final String login;
     private final String senha;
     private final boolean debug;
+    private final String watchIntegrationId;
 
     @Autowired
     public WatchToken(
             SeleniumConfig seleniumConfig,
             @Value("${watch.web.login}") String login,
             @Value("${watch.web.password}") String senha,
-            @Value("${watch.web.debug:false}") boolean debug) {
+            @Value("${watch.web.debug:false}") boolean debug,
+            @Value("${watch.integration.id:4}") String watchIntegrationId) {
         this.seleniumConfig = seleniumConfig;
         this.login = login;
         this.senha = senha;
         this.debug = debug;
+        this.watchIntegrationId = watchIntegrationId;
     }
 
     public WatchToken(boolean debug) {
@@ -54,6 +59,7 @@ public class WatchToken {
         this.login = System.getenv("IXC_WEB_LOGIN");
         this.senha = System.getenv("IXC_WEB_PASSWORD");
         this.debug = debug;
+        this.watchIntegrationId = System.getenv().getOrDefault("WATCH_INTEGRATION_ID", "4");
     }
 
     public String getToken() {
@@ -65,17 +71,8 @@ public class WatchToken {
 
             waitForIxcHomeReady();
             taskLog.info("event=TOKEN_NAV_HOME_READY");
-            clickWhenReady(By.xpath("//*[@id=\"layout_menu_lateral\"]/div/ul/li[3]/a"));
-            taskLog.info("event=TOKEN_NAV_CONFIG_CLICKED");
-            clickWhenReady(By.id("menu73573a838a837557347239b4ff197e49"));
-            taskLog.info("event=TOKEN_NAV_SYSTEM_CLICKED");
-            clickWhenReady(By.id("menu_item_integracoes"));
-            taskLog.info("event=TOKEN_NAV_INTEGRATIONS_CLICKED");
-            refreshIntegrationsGrid();
-            clickWhenReady(By.xpath("//*[@id=\"1_grid\"]/div/div[3]/div[1]/button[2]"));
-            taskLog.info("event=TOKEN_NAV_EDIT_CLICKED");
 
-            String token = waitForTokenValue();
+            String token = fetchTokenFromIxcIntegration();
             taskLog.info("event=TOKEN_VALUE_FOUND");
             return token;
         } catch (WebDriverException e) {
@@ -150,22 +147,49 @@ public class WatchToken {
         }
     }
 
-    private void refreshIntegrationsGrid() {
-        //IA: o IXC pode abrir a grid de integracoes com 0 itens ate clicar no Atualizar do filtro.
-        By refreshButton = By.cssSelector("span.pPageButtons i[title='Atualizar']");
-        wait.until(ExpectedConditions.presenceOfElementLocated(refreshButton));
-        clickWhenReady(refreshButton);
-        taskLog.info("event=TOKEN_NAV_INTEGRATIONS_REFRESH_CLICKED");
-        pause(Duration.ofSeconds(5L));
+    private String fetchTokenFromIxcIntegration() {
+        taskLog.info("event=TOKEN_INTERNAL_ENDPOINT_SEARCH integrationId={}", watchIntegrationId);
+        //IA: usa a sessao autenticada do navegador para consultar o endpoint interno que alimenta a tela de integracoes.
+        return wait.until(driver -> {
+            Object response = ((JavascriptExecutor) driver).executeAsyncScript("""
+                    const integrationId = arguments[0];
+                    const callback = arguments[arguments.length - 1];
+                    fetch(`/aplicativo/integracoes/action/action.php?action=recupera&id=${encodeURIComponent(integrationId)}`, {
+                        credentials: 'include',
+                        headers: { 'Accept': 'application/json' }
+                    })
+                        .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+                        .then(data => callback({ ok: true, data }))
+                        .catch(error => callback({ ok: false, error: String(error && error.message ? error.message : error) }));
+                    """, watchIntegrationId);
+
+            return extractTokenFromEndpointResponse(response);
+        });
     }
 
-    private String waitForTokenValue() {
-        //IA: o campo pode renderizar antes do IXC preencher o valor do token.
-        return wait.until(driver -> {
-            WebElement tokenElement = driver.findElement(By.id("token_acesso_watch"));
-            String value = tokenElement.getAttribute("value");
-            return value == null || value.isBlank() ? null : value;
-        });
+    @SuppressWarnings("unchecked")
+    private String extractTokenFromEndpointResponse(Object response) {
+        if (!(response instanceof Map<?, ?> result)) {
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_RESPONSE");
+        }
+
+        if (!Boolean.TRUE.equals(result.get("ok"))) {
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_ERROR: " + sanitizeLogValue(String.valueOf(result.get("error"))));
+        }
+
+        Object data = result.get("data");
+        if (!(data instanceof List<?> fields)) {
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_PAYLOAD");
+        }
+
+        for (Object field : fields) {
+            if (field instanceof Map<?, ?> item && "token_acesso_watch".equals(item.get("campo"))) {
+                Object value = item.get("valor");
+                return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value);
+            }
+        }
+
+        throw new WebDriverException("IXC_TOKEN_FIELD_NOT_FOUND");
     }
 
     private void captureFailureEvidence(WebDriverException exception) {
@@ -206,15 +230,6 @@ public class WatchToken {
 
     private void clickWithJavascript(WebElement element) {
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-    }
-
-    private void pause(Duration duration) {
-        try {
-            Thread.sleep(duration.toMillis());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new WebDriverException("Espera interrompida ao atualizar grid de integracoes", ex);
-        }
     }
 
     private boolean isElementClickableAtCenter(By locator) {

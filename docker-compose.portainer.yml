@@ -17,6 +17,7 @@ services:
       WATCH_API_DELETE_URL: ${WATCH_API_DELETE_URL:-https://apiweb.watch.tv.br/watch/v1/tickets/delete}
       WATCH_API_SEARCH_URL: ${WATCH_API_SEARCH_URL:-https://apiweb.watch.tv.br/watch/v2/tickets/get}
       WATCH_WEB_DEBUG: ${WATCH_WEB_DEBUG:-false}
+      WATCH_INTEGRATION_ID: ${WATCH_INTEGRATION_ID:-4}
       SELENIUM_CHROME_DRIVER_PATH: /usr/bin/chromedriver
       SELENIUM_CHROME_BINARY_PATH: /usr/bin/chromium
     volumes:

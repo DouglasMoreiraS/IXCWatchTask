@@ -150,36 +150,78 @@ public class WatchToken {
     private String fetchTokenFromIxcIntegration() {
         taskLog.info("event=TOKEN_INTERNAL_ENDPOINT_SEARCH integrationId={}", watchIntegrationId);
         //IA: usa a sessao autenticada do navegador para consultar o endpoint interno que alimenta a tela de integracoes.
-        return wait.until(driver -> {
-            Object response = ((JavascriptExecutor) driver).executeAsyncScript("""
-                    const integrationId = arguments[0];
-                    const callback = arguments[arguments.length - 1];
-                    fetch(`/aplicativo/integracoes/action/action.php?action=recupera&id=${encodeURIComponent(integrationId)}`, {
-                        credentials: 'include',
-                        headers: { 'Accept': 'application/json' }
-                    })
-                        .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
-                        .then(data => callback({ ok: true, data }))
-                        .catch(error => callback({ ok: false, error: String(error && error.message ? error.message : error) }));
-                    """, watchIntegrationId);
+        WebDriverException lastError = null;
 
-            return extractTokenFromEndpointResponse(response);
-        });
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                taskLog.info("event=TOKEN_INTERNAL_ENDPOINT_ATTEMPT attempt={}", attempt);
+                String token = wait.until(driver -> {
+                    Object response = requestTokenEndpoint();
+                    return extractTokenFromEndpointResponse(response);
+                });
+                taskLog.info("event=TOKEN_INTERNAL_ENDPOINT_OK attempt={}", attempt);
+                return token;
+            } catch (WebDriverException ex) {
+                lastError = ex;
+                taskLog.warn("event=TOKEN_INTERNAL_ENDPOINT_RETRY attempt={} error=\"{}\"", attempt, sanitizeLogValue(ex.getMessage()));
+                handlePostLoginOverlays();
+                pause(Duration.ofSeconds(5L));
+            }
+        }
+
+        taskLog.warn("event=TOKEN_INTERNAL_ENDPOINT_FALLBACK_VISUAL error=\"{}\"", sanitizeLogValue(lastError == null ? "" : lastError.getMessage()));
+        return fetchTokenFromIxcVisualFallback();
     }
 
-    @SuppressWarnings("unchecked")
+    private Object requestTokenEndpoint() {
+        return ((JavascriptExecutor) driver).executeAsyncScript("""
+                const integrationId = arguments[0];
+                const callback = arguments[arguments.length - 1];
+                fetch(`/aplicativo/integracoes/action/action.php?action=recupera&id=${encodeURIComponent(integrationId)}`, {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json, text/plain, */*' },
+                    redirect: 'follow'
+                })
+                    .then(async response => {
+                        const contentType = response.headers.get('content-type') || '';
+                        const text = await response.text();
+                        let data = text;
+
+                        if (contentType.includes('application/json') || text.trim().startsWith('[') || text.trim().startsWith('{')) {
+                            try {
+                                data = JSON.parse(text);
+                            } catch (error) {
+                                data = text;
+                            }
+                        }
+
+                        callback({
+                            ok: response.ok,
+                            status: response.status,
+                            contentType,
+                            data
+                        });
+                    })
+                    .catch(error => callback({ ok: false, error: String(error && error.message ? error.message : error) }));
+                """, watchIntegrationId);
+    }
+
     private String extractTokenFromEndpointResponse(Object response) {
         if (!(response instanceof Map<?, ?> result)) {
-            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_RESPONSE");
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_RESPONSE " + describePayload(response));
         }
 
         if (!Boolean.TRUE.equals(result.get("ok"))) {
-            throw new WebDriverException("IXC_TOKEN_ENDPOINT_ERROR: " + sanitizeLogValue(String.valueOf(result.get("error"))));
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_ERROR status=" + result.get("status")
+                    + " error=" + sanitizeLogValue(String.valueOf(result.get("error")))
+                    + " payload=" + describePayload(result.get("data")));
         }
 
         Object data = result.get("data");
         if (!(data instanceof List<?> fields)) {
-            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_PAYLOAD");
+            throw new WebDriverException("IXC_TOKEN_ENDPOINT_INVALID_PAYLOAD status=" + result.get("status")
+                    + " contentType=" + sanitizeLogValue(String.valueOf(result.get("contentType")))
+                    + " payload=" + describePayload(data));
         }
 
         for (Object field : fields) {
@@ -190,6 +232,47 @@ public class WatchToken {
         }
 
         throw new WebDriverException("IXC_TOKEN_FIELD_NOT_FOUND");
+    }
+
+    private String fetchTokenFromIxcVisualFallback() {
+        taskLog.info("event=TOKEN_VISUAL_FALLBACK_START");
+        clickWhenReady(By.xpath("//*[@id=\"layout_menu_lateral\"]/div/ul/li[3]/a"));
+        taskLog.info("event=TOKEN_NAV_CONFIG_CLICKED");
+        clickWhenReady(By.id("menu73573a838a837557347239b4ff197e49"));
+        taskLog.info("event=TOKEN_NAV_SYSTEM_CLICKED");
+        clickWhenReady(By.id("menu_item_integracoes"));
+        taskLog.info("event=TOKEN_NAV_INTEGRATIONS_CLICKED");
+        refreshIntegrationsGrid();
+        selectWatchIntegrationRow();
+        clickWhenReady(By.xpath("//*[@id=\"1_grid\"]/div/div[3]/div[1]/button[2]"));
+        taskLog.info("event=TOKEN_NAV_EDIT_CLICKED");
+        return waitForTokenValue();
+    }
+
+    private void refreshIntegrationsGrid() {
+        //IA: fallback visual para quando o endpoint interno do IXC retorna payload inesperado.
+        By refreshButton = By.cssSelector("span.pPageButtons i[title='Atualizar']");
+        wait.until(ExpectedConditions.presenceOfElementLocated(refreshButton));
+        clickWhenReady(refreshButton);
+        taskLog.info("event=TOKEN_NAV_INTEGRATIONS_REFRESH_CLICKED");
+        pause(Duration.ofSeconds(5L));
+    }
+
+    private void selectWatchIntegrationRow() {
+        //IA: seleciona explicitamente a integracao WATCH para nao depender da primeira linha da grid.
+        By watchRow = By.xpath("//*[@id=\"1_grid\"]//tr[.//*[normalize-space()='WATCH'] or .//*[normalize-space()='Watch']]");
+        WebElement row = wait.until(ExpectedConditions.elementToBeClickable(watchRow));
+        clickWithJavascript(row);
+        taskLog.info("event=TOKEN_NAV_WATCH_ROW_SELECTED");
+    }
+
+    private String waitForTokenValue() {
+        //IA: o campo pode renderizar antes do IXC preencher o valor do token.
+        return wait.until(driver -> {
+            WebElement tokenElement = driver.findElement(By.id("token_acesso_watch"));
+            String value = tokenElement.getAttribute("value");
+            return value == null || value.isBlank() ? null : value;
+        });
     }
 
     private void captureFailureEvidence(WebDriverException exception) {
@@ -232,6 +315,15 @@ public class WatchToken {
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
     }
 
+    private void pause(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new WebDriverException("Espera interrompida ao buscar token Watch", ex);
+        }
+    }
+
     private boolean isElementClickableAtCenter(By locator) {
         try {
             WebElement element = driver.findElement(locator);
@@ -254,5 +346,30 @@ public class WatchToken {
         }
         //IA: evita quebra de linha em logs de diagnostico do Selenium.
         return value.replace("\r", " ").replace("\n", " ").replace("\"", "'");
+    }
+
+    private String describePayload(Object payload) {
+        if (payload == null) {
+            return "type=null";
+        }
+
+        if (payload instanceof Map<?, ?> map) {
+            return "type=Map keys=" + map.keySet();
+        }
+
+        if (payload instanceof List<?> list) {
+            return "type=List size=" + list.size();
+        }
+
+        if (payload instanceof String value) {
+            return "type=String preview='" + preview(value) + "'";
+        }
+
+        return "type=" + payload.getClass().getSimpleName();
+    }
+
+    private String preview(String value) {
+        String sanitized = sanitizeLogValue(value);
+        return sanitized.length() <= 160 ? sanitized : sanitized.substring(0, 160) + "...";
     }
 }

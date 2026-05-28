@@ -26,7 +26,7 @@ RUN apt-get update \
         tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /build/target/IXCWatchTask-0.1.0.jar /app/IXCWatchTask.jar
+COPY --from=build /build/target/IXCWatchTask-*.jar /app/IXCWatchTask.jar
 
 EXPOSE 5052
 

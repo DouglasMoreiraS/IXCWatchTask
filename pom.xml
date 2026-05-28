@@ -10,7 +10,7 @@
     </parent>
     <groupId>br.com.planet</groupId>
     <artifactId>IXCWatchTask</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1</version>
     <name>IXCWatchTask</name>
     <description>IXCWatchTask</description>
     <url/>

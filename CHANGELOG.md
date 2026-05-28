@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1 - 2026-05-28
+
+### Corrigido
+- Build Docker deixa de depender de nome fixo do JAR e passa a copiar `IXCWatchTask-*.jar`.
+- Build Docker permanece independente do diretorio `.git`, compativel com contexto Git gerado pelo Portainer.
+
 ## v0.2.0 - 2026-05-28
 
 ### Adicionado

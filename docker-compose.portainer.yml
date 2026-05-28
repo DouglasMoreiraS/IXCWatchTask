@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ixc-watch-task:0.2.0
+    image: ixc-watch-task:0.2.1
     container_name: ixc-watch-task
     restart: unless-stopped
     ports:

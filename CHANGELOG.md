@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.2.0 - 2026-05-28
+
+### Adicionado
+- Deploy via Docker/Portainer com Chromium e Chromedriver no container.
+- Persistencia de logs em `/home/administrador/ixc-watch-task/logs`.
+- Exposicao de versao e commit via `/actuator/info`.
+- Configuracao `WATCH_INTEGRATION_ID` para identificar a integracao Watch no IXC.
+
+### Alterado
+- Busca do token Watch passa a usar endpoint interno autenticado do IXC apos login web.
+- Fluxo Selenium fica concentrado no login e manutencao da sessao autenticada.
+
+### Corrigido
+- Reducao da dependencia da grid visual de Integracoes do IXC.
+- Fallback visual seleciona explicitamente a linha WATCH quando o endpoint interno retorna payload inesperado.
+- Diagnostico seguro de payload invalido sem registrar token ou credenciais.
+
 ## v0.1.0 - 2026-05-19
 
 ### Adicionado

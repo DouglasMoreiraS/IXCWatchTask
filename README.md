@@ -95,6 +95,7 @@ Endpoints uteis para acompanhamento local e Uptime Kuma:
 ```text
 GET  http://localhost:5052/actuator/health
 GET  http://localhost:5052/monitoring/task-status
+GET  http://localhost:5052/actuator/info
 POST http://localhost:5052/tasks/ixc-watch/run
 ```
 
@@ -108,6 +109,12 @@ Para consultar a ultima execucao da rotina, use:
 
 ```text
 http://localhost:5052/monitoring/task-status
+```
+
+Para consultar versao e commit do build, use:
+
+```text
+http://localhost:5052/actuator/info
 ```
 
 ## Deploy Windows
